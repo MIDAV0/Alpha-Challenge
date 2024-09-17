@@ -1,7 +1,5 @@
 use alloy::{
-    providers::Provider,
-    rpc::types::Transaction,
-    primitives::{U64, U128, U256}
+    primitives::{U128, U256, U64}, providers::{Provider, RootProvider}, pubsub::PubSubFrontend, rpc::types::Transaction
 };
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender;
@@ -37,16 +35,16 @@ pub enum Event {
     PendingTx(NewPendingTx),
 }
 
-pub async fn stream_new_blocks(provider: Arc<dyn Provider>, event_sender: Sender<Event>) {
+pub async fn stream_new_blocks(provider: Arc<RootProvider<PubSubFrontend>>, event_sender: Sender<Event>) {
     let sub = provider.subscribe_blocks().await.unwrap();
     let mut stream = sub.into_stream().filter_map(|block| match block.header.number {
         Some(number) => Some(NewBlock {
             block_number: U64::from(number),
             base_fee: U128::from(block.header.base_fee_per_gas.unwrap_or_default()),
             next_base_fee: U256::from(calculate_next_block_base_fee(
-                block.header.gas_used,
-                block.header.gas_limit,
-                block.header.base_fee_per_gas.unwrap_or_default(),
+                U256::from(block.header.gas_used),
+                U256::from(block.header.gas_limit),
+                U256::from(block.header.base_fee_per_gas.unwrap_or_default()),
             )),
         }),
         None => None,
@@ -60,7 +58,7 @@ pub async fn stream_new_blocks(provider: Arc<dyn Provider>, event_sender: Sender
     }
 }
 
-pub async fn stream_pending_transactions(provider: Arc<dyn Provider>, event_sender: Sender<Event>) {
+pub async fn stream_pending_transactions(provider: Arc<RootProvider<PubSubFrontend>>, event_sender: Sender<Event>) {
     let sub = provider.subscribe_pending_transactions().await.unwrap();
     let mut stream = sub.into_stream().take(256).fuse();
 

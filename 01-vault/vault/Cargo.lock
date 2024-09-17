@@ -5424,6 +5424,7 @@ dependencies = [
  "indicatif",
  "itertools 0.11.0",
  "log",
+ "rand",
  "revm",
  "rlp",
  "serde",

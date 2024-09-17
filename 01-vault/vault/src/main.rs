@@ -1,5 +1,5 @@
 use anyhow::Result;
-use alloy::providers::{Provider, ProviderBuilder, WsConnect};
+use alloy::providers::{ProviderBuilder, WsConnect};
 use log::info;
 use std::sync::Arc;
 use tokio::sync::broadcast::{self, Sender};
@@ -8,6 +8,7 @@ use tokio::task::JoinSet;
 use vault::utils::constants::Env;
 use vault::utils::utils::setup_logger;
 use vault::utils::helpers::{stream_new_blocks, stream_pending_transactions, Event};
+use vault::utils::strategy::run_sandwich_strategy;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -25,16 +26,16 @@ async fn main() -> Result<()> {
 
     let mut set = JoinSet::new();
 
-    set.spawn(stream_new_blocks(provider.clone(), event_sender.clone()));
+    // set.spawn(stream_new_blocks(provider.clone(), event_sender.clone()));
     set.spawn(stream_pending_transactions(
         provider.clone(),
         event_sender.clone(),
     ));
 
-    // set.spawn(run_sandwich_strategy(
-    //     provider.clone(),
-    //     event_sender.clone(),
-    // ));
+    set.spawn(run_sandwich_strategy(
+        provider.clone(),
+        event_sender.clone(),
+    ));
 
     while let Some(res) = set.join_next().await {
         info!("{:?}", res);

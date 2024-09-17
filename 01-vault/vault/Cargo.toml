@@ -18,6 +18,7 @@ tokio = { version = "1.29.0", features = ["full"] }
 tokio-stream = { version = "0.1", features = ['sync'] }
 tokio-tungstenite = "*"
 async-trait = "0.1.74"
+rand = "0.8.5"
 
 alloy = { version = "0.2.0", features = ["full"] }
 

@@ -1,22 +1,24 @@
 use anyhow::Result;
-use ethers::core::rand::thread_rng;
-use ethers::prelude::*;
-use ethers::{
-    self,
-    types::{
-        transaction::eip2930::{AccessList, AccessListItem},
-        U256,
-    },
+
+use alloy::{
+    primitives::{Address, U256},
+    providers::RootProvider,
+    pubsub::PubSubFrontend,
+    sol
 };
 use fern::colors::{Color, ColoredLevelConfig};
-use foundry_evm_mini::evm::utils::{b160_to_h160, h160_to_b160, ru256_to_u256, u256_to_ru256};
 use log::LevelFilter;
 use rand::Rng;
-use revm::primitives::{B160, U256 as rU256};
-use std::str::FromStr;
 use std::sync::Arc;
 
-use crate::common::constants::*;
+use crate::utils::constants::*;
+
+sol!(
+    #[allow(missing_docs)]
+    #[sol(rpc)]
+    ERC20,
+    "src/data/contract_abis/ERC20.json"
+);
 
 pub fn setup_logger() -> Result<()> {
     let colors = ColoredLevelConfig {
@@ -52,9 +54,9 @@ pub fn calculate_next_block_base_fee(
 ) -> U256 {
     let gas_used = gas_used;
 
-    let mut target_gas_used = gas_limit / 2;
-    target_gas_used = if target_gas_used == U256::zero() {
-        U256::one()
+    let mut target_gas_used = gas_limit / U256::from(2u64);
+    target_gas_used = if target_gas_used == U256::ZERO {
+        U256::from(1u64)
     } else {
         target_gas_used
     };
@@ -72,28 +74,20 @@ pub fn calculate_next_block_base_fee(
     };
 
     let seed = rand::thread_rng().gen_range(0..9);
-    new_base_fee + seed
+    new_base_fee + U256::from(seed)
 }
 
-abigen!(
-    IERC20,
-    r#"[
-        function balanceOf(address) external view returns (uint256)
-    ]"#,
-);
 
 pub async fn get_token_balance(
-    provider: Arc<Provider<Ws>>,
-    owner: H160,
-    token: H160,
-) -> Result<U256> {
-    let contract = IERC20::new(token, provider);
-    let token_balance = contract.balance_of(owner).call().await?;
-    Ok(token_balance)
-}
-
-pub fn create_new_wallet() -> (LocalWallet, H160) {
-    let wallet = LocalWallet::new(&mut thread_rng());
-    let address = wallet.address();
-    (wallet, address)
+    owner: Address,
+    token: Address,
+    provider: Arc<RootProvider<PubSubFrontend>>,
+) -> Result<U256>
+{
+    // Initialize ERC20 token contract instance
+    let erc20 = ERC20::new(token, provider);    
+    // Call the balanceOf function
+    let ERC20::balanceOfReturn { balance } = erc20.balanceOf(owner).call().await?;
+    
+    Ok(balance)
 }
