@@ -1,4 +1,4 @@
-use anyhow::Result;
+use eyre::Result;
 use alloy::providers::{ProviderBuilder, WsConnect};
 use log::info;
 use std::sync::Arc;

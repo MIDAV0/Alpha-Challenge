@@ -1,5 +1,4 @@
-use anyhow::Result;
-
+use eyre::Result;
 use alloy::{
     primitives::{Address, U256},
     providers::RootProvider,

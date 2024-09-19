@@ -37,18 +37,17 @@ pub enum Event {
 
 pub async fn stream_new_blocks(provider: Arc<RootProvider<PubSubFrontend>>, event_sender: Sender<Event>) {
     let sub = provider.subscribe_blocks().await.unwrap();
-    let mut stream = sub.into_stream().filter_map(|block| match block.header.number {
-        Some(number) => Some(NewBlock {
-            block_number: U64::from(number),
+    let mut stream = sub.into_stream().filter_map(|block| 
+        Some(NewBlock {
+            block_number: U64::from(block.header.number),
             base_fee: U128::from(block.header.base_fee_per_gas.unwrap_or_default()),
             next_base_fee: U256::from(calculate_next_block_base_fee(
                 U256::from(block.header.gas_used),
                 U256::from(block.header.gas_limit),
-                U256::from(block.header.base_fee_per_gas.unwrap_or_default()),
-            )),
-        }),
-        None => None,
-    });
+                U256::from(block.header.base_fee_per_gas.unwrap_or_default()))),
+            }
+        )
+    );
 
     while let Some(block) = stream.next().await {
         match event_sender.send(Event::Block(block)) {
