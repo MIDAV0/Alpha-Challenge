@@ -5452,6 +5452,8 @@ name = "vault"
 version = "0.1.0"
 dependencies = [
  "alloy",
+ "alloy-contract",
+ "alloy-rlp",
  "async-trait",
  "bounded-vec-deque",
  "chrono",

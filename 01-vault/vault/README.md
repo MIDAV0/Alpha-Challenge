@@ -21,3 +21,13 @@ This exploit takes advantage of the rounding vulnerability and the ability to ma
 # Part b)
 
 OpenZeppelin introduced ERC4626 in v4.7.0 (Jun 30 2022) and added mitigation measure to inflation attack in v4.9.0 (May 23 2023) (https://github.com/OpenZeppelin/openzeppelin-contracts/releases?page=2). This will be the time window for searching the effects of this vulnarubility.
+
+
+# Part c)
+Attack scenario:
+1. A hacker back-runs the transaction of an ERC4626 pool creation.
+2. The hacker mints for themself one share: deposit(1). Thus, totalAsset()==1, totalSupply()==1.
+3. The hacker front-runs the deposit of the victim who wants to deposit 20,000 USDT (20,000.000000).
+4. The hacker inflates the denominator right in front of the victim: asset.transfer(20_000e6). Now totalAsset()==20_000e6 + 1, totalSupply()==1.
+5. Next, the victim's tx takes place. The victim gets 1 * 20_000e6 / (20_000e6 + 1) == 0 shares. The victim gets zero shares.
+6. The hacker burns their share and gets all the money.
