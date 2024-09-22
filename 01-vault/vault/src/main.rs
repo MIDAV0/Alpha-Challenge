@@ -8,7 +8,7 @@ use tokio::task::JoinSet;
 use vault::utils::constants::Env;
 use vault::utils::utils::setup_logger;
 use vault::utils::helpers::{stream_new_blocks, stream_pending_transactions, Event};
-use vault::utils::strategy::run_sandwich_strategy;
+use vault::utils::strategy::run_strategy;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -32,7 +32,7 @@ async fn main() -> Result<()> {
         event_sender.clone(),
     ));
 
-    set.spawn(run_sandwich_strategy(
+    set.spawn(run_strategy(
         provider.clone(),
         event_sender.clone(),
     ));

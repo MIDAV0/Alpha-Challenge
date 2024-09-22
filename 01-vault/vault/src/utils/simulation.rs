@@ -1,12 +1,10 @@
 use std::sync::Arc;
 use alloy::{
-    json_abi::JsonAbi,
     dyn_abi::DynSolValue,
     primitives::{Address, FixedBytes, U256},
     providers::{Provider, RootProvider},
     pubsub::PubSubFrontend,
 };
-use std::fs;
 use alloy_contract::Interface;
 use std::collections::HashSet;
 // use alloy::rpc::types::trace::geth::{CallFrame, CallConfig, GethDebugTracingCallOptions, GethDebugBuiltInTracerType, GethDebugTracerType, GethDebugTracerConfig, GethTrace};
@@ -21,11 +19,6 @@ pub struct VaultDepositInfo {
     pub tx_hash: FixedBytes<32>,
     pub vault_address: Address,
     pub amount: U256,
-}
-
-pub struct VaultCreationInfo {
-    pub tx_hash: FixedBytes<32>,
-    pub vault_address: Address,
 }
 
 // pub async fn debug_trace_call(
@@ -84,7 +77,7 @@ pub async fn get_deployment_contract_address(
 pub async fn extract_vault_creation_info(
     provider: &Arc<RootProvider<PubSubFrontend>>,
     pending_tx: &NewPendingTx,
-) -> Result<Option<VaultCreationInfo>> {
+) -> Result<Option<Address>> {
     if !pending_tx.tx.to.is_none() || pending_tx.tx.to != Some(Address::ZERO) {
         return Ok(None);
     }
@@ -95,24 +88,15 @@ pub async fn extract_vault_creation_info(
 
     let deploy_address = get_deployment_contract_address(provider, pending_tx.tx.from).await?;
 
-    Ok(Some(VaultCreationInfo {
-        tx_hash: pending_tx.tx.hash,
-        vault_address: deploy_address,
-    }))
+    Ok(Some(deploy_address))
 }
 
 pub async fn extract_vault_deposit_info(
     pending_tx: &NewPendingTx,
+    vault_interface: &Interface,
     vaults_set: &mut HashSet<Address>,
 ) -> Result<Option<VaultDepositInfo>> {
     let tx_hash = pending_tx.tx.hash;
-
-    let vault_interface = {
-        let path = "src/utils/contract_abis/Multicall2.json";
-        let json = fs::read_to_string(path)?;
-        let abi: JsonAbi = serde_json::from_str(&json)?;
-        Interface::new(abi)
-    };
 
     if let Some(to_address) = pending_tx.tx.to {
         if vaults_set.contains(&to_address) {

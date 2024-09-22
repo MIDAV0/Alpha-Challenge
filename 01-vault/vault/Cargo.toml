@@ -24,7 +24,12 @@ alloy = { version = "0.3.6", features = ["full", "rpc-types-trace"] }
 alloy-rlp = "0.3.6"
 alloy-contract = "0.3.6"
 
-ethers-flashbots = { git = "https://github.com/onbjerg/ethers-flashbots" }
+tower = "0.4.0"
+mev-share-rpc-api = "=0.1.4"
+jsonrpsee-http-client = "=0.20.0"
+ethers-signers = "2.0"
+ethers = "2.0"
+ecdsa = "0.16.9"
 
 eth-encode-packed = "0.1.0"
 rlp = { version = "0.5", features = ["derive"] }
