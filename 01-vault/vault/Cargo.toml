@@ -23,10 +23,11 @@ rand = "0.8.5"
 alloy = { version = "0.3.6", features = ["full", "rpc-types-trace"] }
 alloy-rlp = "0.3.6"
 alloy-contract = "0.3.6"
+alloy-eips = "0.3.6"
 
 tower = "0.4.0"
 mev-share-rpc-api = "=0.1.4"
-jsonrpsee-http-client = "=0.20.0"
+jsonrpsee-http-client = "=0.18.0"
 ethers-signers = "2.0"
 ethers = "2.0"
 ecdsa = "0.16.9"

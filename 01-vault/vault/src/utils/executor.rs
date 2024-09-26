@@ -1,28 +1,29 @@
-use std::error::Error as StdError;
-use ethers::core::{k256::Secp256k1, types::{H256,Bytes as EthBytes}};
+use ethers::core::types::{H256,Bytes as EthBytes};
 use eyre::Result;
 use alloy::{
-    dyn_abi::DynSolValue, json_abi::JsonAbi, network::{EthereumWallet, NetworkWallet, TransactionBuilder}, primitives::{Address, Bytes, U256}, providers::{Provider, RootProvider}, pubsub::PubSubFrontend, rpc::types::{TransactionInput, TransactionRequest}, signers::local::{LocalSigner, PrivateKeySigner}
+    dyn_abi::DynSolValue, json_abi::JsonAbi, network::{EthereumWallet, TransactionBuilder}, primitives::{Address, Bytes, U256}, rpc::types::TransactionRequest
 };
 use alloy_contract::Interface;
+use alloy_eips::eip2718::Encodable2718;
 
-use ethers_signers::{LocalWallet, Wallet};
-use ecdsa::SigningKey;
+use ethers_signers::LocalWallet;
 
 
-use jsonrpsee_http_client::{transport::{Error as HttpError, HttpBackend}, HttpClient, HttpClientBuilder};
-use mev_share_rpc_api::{BundleItem, FlashbotsSigner, FlashbotsSignerLayer, SendBundleRequest};
-use tower::{util::MapErr, ServiceBuilder};
+use jsonrpsee_http_client::{transport, HttpClientBuilder};
+use mev_share_rpc_api::{BundleItem, FlashbotsSignerLayer, MevApiClient, SendBundleRequest};
 use std::fs;
 
 
 use super::helpers::NewPendingTx;
 use crate::utils::constants::Env;
 
+struct Client {
+    inner: Box<dyn MevApiClient>,
+}
 
 pub struct Executor {
     pub vault_interface: Interface,
-    pub client: HttpClient<MapErr<FlashbotsSigner<Wallet<SigningKey<Secp256k1>>, HttpBackend>, fn(Box<(dyn StdError + Send + Sync + 'static)>) -> HttpError>>,
+    pub client: Client,
 }
 
 impl Executor {
@@ -31,23 +32,15 @@ impl Executor {
 
         let identity = env.identity_key.parse::<LocalWallet>().unwrap();
 
-        // Define the error mapping function
-        fn map_err_fn(e: Box<dyn StdError + Send + Sync>) -> HttpError {
-            HttpError::Http(e)
-        }
-
-        // Set up flashbots-style auth middleware
-        let signing_middleware = FlashbotsSignerLayer::new(identity);
-        let service_builder = ServiceBuilder::new()
-            .map_err(map_err_fn as fn(Box<dyn StdError + Send + Sync>) -> HttpError)
-            .layer(signing_middleware);
-
-        // Set up the rpc client
-        let url = "https://relay.flashbots.net:443";
-        let client = HttpClientBuilder::default()
-            .set_middleware(service_builder)
-            .build(url)
-            .expect("Failed to create http client");
+        let http = HttpClientBuilder::default()
+            .set_middleware(
+                tower::ServiceBuilder::new()
+                    .map_err(transport::Error::Http)
+                    .layer(FlashbotsSignerLayer::new(identity)),
+            )
+            .build("https://relay.flashbots.net:443")
+            .unwrap();
+        let client = Client { inner: Box::new(http) };
 
         let vault_interface = {
             let path = "src/data/contract_abis/MaliciousVault.json";
@@ -74,8 +67,8 @@ impl Executor {
             self.vault_interface.encode_input(
                 "deposit",
                 &[
-                        DynSolValue::Uint(U256::from(2_500_000_000u64), 256),
-                        DynSolValue::Address(signer.default_signer_address())
+                        DynSolValue::Uint(U256::from(1_000000000000000000_u128), 256),
+                        DynSolValue::Address(signer.default_signer().address())
                     ]
                 )?
             .as_slice());
@@ -88,23 +81,24 @@ impl Executor {
     
         let backrun_signed = backrun_tx.build(&signer).await?;
     
-        // Convert backrun_signed to Bytes
-        let x =  EthBytes::from_static(Bytes::new().as_bytes());
+        let mut encoded = vec![];
+        backrun_signed.encode_2718(&mut encoded);
+        let converted_bytes: EthBytes = EthBytes::from(encoded);
     
         // Build bundle
         let mut bundle_body = Vec::new();
         bundle_body.push(BundleItem::Hash { hash: victim_tx_hash });
-        bundle_body.push(BundleItem::Tx { tx: x, can_revert: false });
+        bundle_body.push(BundleItem::Tx { tx: converted_bytes, can_revert: false });
     
         let bundle = SendBundleRequest { bundle_body, ..Default::default() };
     
         // Send bundle
-        let resp = self.client.send_bundle(bundle.clone()).await;
+        let resp = self.client.inner.send_bundle(bundle.clone()).await;
         println!("Got a bundle response: {:?}", resp);
     
         // Simulate bundle 
-        let sim_res = self.client.sim_bundle(bundle, Default::default()).await;
-        println!("Got a simulation response: {:?}", sim_res);
+        // let sim_res = self.client.sim_bundle(bundle, Default::default()).await;
+        // println!("Got a simulation response: {:?}", sim_res);
         Ok(())
     }
 
@@ -121,7 +115,7 @@ impl Executor {
                 "deposit",
                 &[
                         DynSolValue::Uint(U256::from(2_500_000_000u64), 256),
-                        DynSolValue::Address(signer.default_signer_address())
+                        DynSolValue::Address(signer.default_signer().address())
                     ]
                 )?
             .as_slice());
@@ -134,23 +128,24 @@ impl Executor {
     
         let backrun_signed = backrun_tx.build(&signer).await?;
     
-        // Convert backrun_signed to Bytes
-        let x =  EthBytes::from_static(Bytes::new().as_bytes());
+        let mut encoded = vec![];
+        backrun_signed.encode_2718(&mut encoded);
+        let converted_bytes: EthBytes = EthBytes::from(encoded);
     
         // Build bundle
         let mut bundle_body = Vec::new();
         bundle_body.push(BundleItem::Hash { hash: victim_tx_hash });
-        bundle_body.push(BundleItem::Tx { tx: x, can_revert: false });
+        bundle_body.push(BundleItem::Tx { tx: converted_bytes, can_revert: false });
     
         let bundle = SendBundleRequest { bundle_body, ..Default::default() };
     
         // Send bundle
-        let resp = self.client.send_bundle(bundle.clone()).await;
+        let resp = self.client.inner.send_bundle(bundle.clone()).await;
         println!("Got a bundle response: {:?}", resp);
     
         // Simulate bundle 
-        let sim_res = self.client.sim_bundle(bundle, Default::default()).await;
-        println!("Got a simulation response: {:?}", sim_res);
+        // let sim_res = self.client.sim_bundle(bundle, Default::default()).await;
+        // println!("Got a simulation response: {:?}", sim_res);
         Ok(())
     }
 
