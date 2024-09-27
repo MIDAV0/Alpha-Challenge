@@ -1,9 +1,6 @@
-use std::sync::Arc;
+use std::{fs, sync::Arc};
 use alloy::{
-    dyn_abi::DynSolValue,
-    primitives::{Address, FixedBytes, U256},
-    providers::{Provider, RootProvider},
-    pubsub::PubSubFrontend,
+    dyn_abi::DynSolValue, json_abi::JsonAbi, network::Network, primitives::{Address, FixedBytes, U256}, providers::Provider, transports::Transport
 };
 use alloy_contract::Interface;
 use std::collections::HashSet;
@@ -65,19 +62,26 @@ pub struct VaultDepositInfo {
 //     }
 // }
 
-pub async fn get_deployment_contract_address(
-    provider: &Arc<RootProvider<PubSubFrontend>>,
+pub async fn get_deployment_contract_address<P,T,N>(
+    provider: &Arc<P>,
     deployer: Address,
-) -> Result<Address> {
+) -> Result<Address>
+where
+P: Provider<T, N>,
+T: Transport + Clone,
+N: Network
+{
     let nonce = provider.get_transaction_count(deployer).await?;
     let address = deployer.create(nonce);
     Ok(address)
 }
 
-pub async fn extract_vault_creation_info(
-    provider: &Arc<RootProvider<PubSubFrontend>>,
-    pending_tx: &NewPendingTx,
-) -> Result<Option<Address>> {
+pub async fn extract_vault_creation_info<P,T,N>(provider: &Arc<P>, pending_tx: &NewPendingTx) -> Result<Option<Address>>
+where
+P: Provider<T, N>,
+T: Transport + Clone,
+N: Network
+{
     if !pending_tx.tx.to.is_none() || pending_tx.tx.to != Some(Address::ZERO) {
         return Ok(None);
     }
@@ -93,10 +97,16 @@ pub async fn extract_vault_creation_info(
 
 pub async fn extract_vault_deposit_info(
     pending_tx: &NewPendingTx,
-    vault_interface: &Interface,
     vaults_set: &mut HashSet<Address>,
 ) -> Result<Option<VaultDepositInfo>> {
     let tx_hash = pending_tx.tx.hash;
+
+    let vault_interface = {
+        let path = "src/data/contract_abis/MaliciousVault.json";
+        let json = fs::read_to_string(path).unwrap();
+        let abi: JsonAbi = serde_json::from_str(&json).unwrap();
+        Interface::new(abi)
+    };
 
     if let Some(to_address) = pending_tx.tx.to {
         if vaults_set.contains(&to_address) {

@@ -1,5 +1,5 @@
 use alloy::{
-    primitives::{U128, U256, U64}, providers::{Provider, RootProvider}, pubsub::PubSubFrontend, rpc::types::Transaction
+    network::Network, primitives::{U128, U256, U64}, providers::{Provider, RootProvider}, pubsub::PubSubFrontend, rpc::types::Transaction, transports::Transport
 };
 use std::sync::Arc;
 use tokio::sync::broadcast::Sender;
@@ -57,7 +57,12 @@ pub async fn stream_new_blocks(provider: Arc<RootProvider<PubSubFrontend>>, even
     }
 }
 
-pub async fn stream_pending_transactions(provider: Arc<RootProvider<PubSubFrontend>>, event_sender: Sender<Event>) {
+pub async fn stream_pending_transactions<P, T, N>(provider: Arc<P>, event_sender: Sender<Event>)
+where
+P: Provider<T, N>,
+T: Transport + Clone,
+N: Network<TransactionResponse = alloy::rpc::types::Transaction>
+{
     let sub = provider.subscribe_pending_transactions().await.unwrap();
     let mut stream = sub.into_stream().take(256).fuse();
 
