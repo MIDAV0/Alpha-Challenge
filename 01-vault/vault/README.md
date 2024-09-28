@@ -24,10 +24,30 @@ OpenZeppelin introduced ERC4626 in v4.7.0 (Jun 30 2022) and added mitigation mea
 
 
 # Part c)
+
+Code:
+- Rust
+- Solidity
+
+To run the code:
+- `cargo run` to run the code
+
 Attack scenario:
-1. A hacker back-runs the transaction of an ERC4626 pool creation.
-2. The hacker mints for themself one share: deposit(1). Thus, totalAsset()==1, totalSupply()==1.
-3. The hacker front-runs the deposit of the victim who wants to deposit 20,000 USDT (20,000.000000).
-4. The hacker inflates the denominator right in front of the victim: asset.transfer(20_000e6). Now totalAsset()==20_000e6 + 1, totalSupply()==1.
+1. An attacker back-runs the transaction of an ERC4626 pool creation.
+2. The attacker mints for themself one share: deposit(1). Thus, totalAsset()==1, totalSupply()==1.
+3. The attacker front-runs the deposit of the victim who wants to deposit 20,000 USDT (20,000.000000).
+4. The attacker inflates the denominator right in front of the victim: asset.transfer(20_000e6). Now totalAsset()==20_000e6 + 1, totalSupply()==1.
 5. Next, the victim's tx takes place. The victim gets 1 * 20_000e6 / (20_000e6 + 1) == 0 shares. The victim gets zero shares.
-6. The hacker burns their share and gets all the money.
+6. The attacker burns their share and gets all the money.
+
+POS code functionality:
+1. Listen to the mempool for the creation of a new ERC4626 pool.
+    - Filter the creation of a new ERC4626 pool by tx call data and 0 destination address.
+2. Back-run the pool creation transaction with a deposit.
+    - Send a flashbots bundle with a deposit to the new ERC4626 pool.
+3. Add new vault address to the set of vaults that are being monitored.
+4. Listen to the mempool for the deposit of the victim to one of the monitored vaults.
+    - Filter the deposit of the victim by tx function selector (0x2c32e4d4) and monitored vault address.
+5. Front-run the deposit of the victim with a token transfer to the vault equivalent to the victim's deposit.
+    - Send a flashbots bundle with a token transfer to the vault.
+6. Burn the share and withdraw all the assets from the vault.
